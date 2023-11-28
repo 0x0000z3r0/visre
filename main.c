@@ -237,9 +237,15 @@ main(int argc, char *argv[])
 	int phc_ord;
 	int phc_reg;
 	int phc_cnt;
+	int phc_rgb;
+	int phc_len;
+	float phc_thc;
 	phc_ord = 9;
 	phc_reg = (int)powf(2, phc_ord);
 	phc_cnt = phc_reg * phc_reg;
+	phc_rgb = 0;
+	phc_len = 1024;
+	phc_thc = 1.0f;
 
 	while (!WindowShouldClose()) {
 		if (IsFileDropped()) {
@@ -373,15 +379,39 @@ main(int argc, char *argv[])
 					
 					float entropy;
 					entropy = 0.0f;
+						
+					GuiLabel((Rectangle){ GetScreenWidth() - 210, 84, 100, 20 }, TextFormat("(0x19...0x7F)"));
+
+					Color ascii_color = PURPLE;
+					DrawRectangle(GetScreenWidth() - 132, 83, 84, 24, WHITE);
+					DrawRectangle(GetScreenWidth() - 130, 85, 80, 20, ascii_color);
+
+					GuiLabel((Rectangle){ GetScreenWidth() - 210, 114, 100, 20 }, TextFormat("[0x00]"));
+
+					Color zero_color = RAYWHITE;
+					DrawRectangle(GetScreenWidth() - 132, 113, 84, 24, WHITE);
+					DrawRectangle(GetScreenWidth() - 130, 115, 80, 20, zero_color);
+
+					GuiLabel((Rectangle){ GetScreenWidth() - 210, 144, 100, 20 }, TextFormat("[0xFF]"));
+
+					Color fill_color = SKYBLUE;
+					DrawRectangle(GetScreenWidth() - 132, 143, 84, 24, WHITE);
+					DrawRectangle(GetScreenWidth() - 130, 145, 80, 20, fill_color);
+
+					GuiLabel((Rectangle){ GetScreenWidth() - 210, 174, 100, 20 }, TextFormat("[0xXY]"));
+
+					Color misc_color = BLUE;
+					DrawRectangle(GetScreenWidth() - 132, 173, 84, 24, WHITE);
+					DrawRectangle(GetScreenWidth() - 130, 175, 80, 20, misc_color);
 
 					Color color;
 					for (int i = 0; i < (int)sec_size; ++i) {
 						if (file_data[(int)sec_off + i] > 0x19 && file_data[(int)sec_off + i] < 0x7F) {
-							color = PURPLE;
+							color = ascii_color;
 						} else if (file_data[(int)sec_off + i] == 0x00) {
-							color = RAYWHITE;
+							color = zero_color;
 						} else if (file_data[(int)sec_off + i] == 0xFF) {
-							color = SKYBLUE;
+							color = fill_color;
 						} else {
 							color = BLUE;
 						}
@@ -404,7 +434,7 @@ main(int argc, char *argv[])
 					ent_rec.width = 120;
 					ent_rec.height = 20;
 					ent_rec.x = (float)GetScreenWidth() - ent_rec.width - 20;
-					ent_rec.y = 150;
+					ent_rec.y = 200;
 
 					GuiLabel(ent_rec, TextFormat("Entropy: %.04f", entropy));
 					break;
@@ -525,8 +555,15 @@ main(int argc, char *argv[])
 					if (phc_lns == NULL)
 						break;
 
+					Color *color_file_data = (Color*)file_data;
+
+					int sec_len = (int)sec_off + (int)sec_size;
+					if (phc_rgb)
+						sec_len /= sizeof (Color);
+
 					Color color;
-					for (int i = sec_off; i < (int)sec_off + (int)sec_size; ++i) {
+					int phc_rep = 2; 
+					for (int i = sec_off; i < sec_len; ++i) {
 						if (file_data[(int)sec_off + i] > 0x19 && file_data[(int)sec_off + i] < 0x7F) {
 							color = PURPLE;
 						} else if (file_data[(int)sec_off + i] == 0x00) {
@@ -537,8 +574,10 @@ main(int argc, char *argv[])
 							color = BLUE;
 						}
 
+						for (int r = 0; r < phc_rep; ++r) {
+
 						int k;
-						k = i - sec_off;
+						k = (i - sec_off) * phc_rep + r;
 
 						if (k >= phc_cnt)
 							break;
@@ -583,23 +622,47 @@ main(int argc, char *argv[])
 							}
 						}
 
-						phc_lns[o + 0] *= 1024 / phc_reg;
-						phc_lns[o + 1] *= 1024 / phc_reg;
+						phc_lns[o + 0] *= phc_len / phc_reg;
+						phc_lns[o + 1] *= phc_len / phc_reg;
 
 						if (o > 0) {
 							Vector2 s;
-							s.x = phc_lns[o + 0] / 2.0f + GetScreenWidth() / 2.0f - 1024 / 4.0f;
+							s.x = phc_lns[o + 0] / 2.0f + GetScreenWidth() / 2.0f - (phc_len / phc_ord * 2);
 							s.y = phc_lns[o + 1] / 2.0f + 100;
 
 							Vector2 e;
-							e.x = phc_lns[o - 2 + 0] / 2.0f + GetScreenWidth() / 2.0f - 1024 / 4.0f;
+							e.x = phc_lns[o - 2 + 0] / 2.0f + GetScreenWidth() / 2.0f - (phc_len / phc_ord * 2);
 							e.y = phc_lns[o - 2 + 1] / 2.0f + 100;
 
-							DrawLineV(s, e, color);
+							if (phc_rgb)
+								DrawLineEx(s, e, phc_thc, color_file_data[i]);
+							else
+								DrawLineEx(s, e, phc_thc, color);
+						}
+
 						}
 					}
 
 					free(phc_lns);
+
+					GuiSliderBar((Rectangle){ GetScreenWidth() - 255, 90, 200, 20 }, NULL, 
+						TextFormat("%.02f", phc_thc), &phc_thc, 1.0f, 20.0f);
+
+					float phc_len_f = phc_len;
+					GuiSliderBar((Rectangle){ GetScreenWidth() - 255, 120, 200, 20 }, NULL, 
+						TextFormat("%i", phc_len), &phc_len_f, phc_reg, 8192 * 2);
+					phc_len = (int)phc_len_f;
+
+					float phc_ord_f = phc_ord;
+					GuiSliderBar((Rectangle){ GetScreenWidth() - 255, 150, 200, 20 }, NULL, 
+						TextFormat("%i", phc_ord), &phc_ord_f, 4, 12);
+					phc_ord = (int)phc_ord_f;
+					phc_reg = (int)powf(2, phc_ord);
+					phc_cnt = phc_reg * phc_reg;
+
+					if (GuiButton((Rectangle){ GetScreenWidth() - 155, 180, 100, 20 }, "Switch")) {
+						phc_rgb ^= 1;
+					}
 
 					break;
 				}
